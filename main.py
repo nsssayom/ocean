@@ -1,62 +1,69 @@
 import netCDF4
-import matplotlib.pyplot as plt
 import xarray as xr
 import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+from mpl_toolkits.basemap import Basemap
 
-nc = netCDF4.Dataset("sample_data_2.nc", "r", format="NETCDF4")
+# read the netcdf file
+nc = netCDF4.Dataset("sample_data_4.nc", "r", format="NETCDF4")
 
-print(nc.variables.keys())
-
+# get all lat and lon values
 lat = nc.variables["lat"][:]
 lon = nc.variables["lon"][:]
 
-time_var = nc.variables["time"]
-dtime = netCDF4.num2date(time_var[:], time_var.units)
 
-sst = nc.variables["sea_surface_temperature"]
-
-# print(sst)
-
-# print(lat)
-# print(lon)
-# print(dtime[0])
-
-print(lat[0])
-print(lat[4320 - 1])
-
-print(lon[0])
-print(lon[8640 - 1])
+# lat starts at -90 and ends at 90
+# lat has 17999 indexes
+# this function will return the index of the closest value to the given value
+def get_lat_index(array, value):
+    array = np.asarray(array)
+    idx = (np.abs(array - value)).argmin()
+    return idx
 
 
-# print(sst[0, 2000, 2000])
-
-# # loop from 0 to 4320
-# for i in range(2000, 4320):
-#     for j in range(2000, 8640):
-#         print(lat[i], lon[j], sst[0, i, j])
-
-
-def getLatIndex(lat):
-    max_index = 4320
-    min_index = 0
-    max_lat = -90
-    min_lat = 90
-
-    factor = max_index / (max_lat - min_lat)
-
-    return int((max_index / 2) + factor * lat)
+# lon starts at -180 and ends at 180
+# lon has 36000 indexes
+# this function will return the index of the closest value to the given value
+def get_lon_index(array, value):
+    array = np.asarray(array)
+    idx = (np.abs(array - value)).argmin()
+    return idx
 
 
-def getLonIndex(lon):
-    max_index = 8640
-    min_index = 0
-    max_lon = 180
-    min_lon = -180
-
-    factor = max_index / (max_lon - min_lon)
-
-    return int((max_index / 2) + factor * lon)
+lats = lat[get_lat_index(lat, 15) : get_lat_index(lat, 25)]
+lons = lon[get_lon_index(lon, 85) : get_lon_index(lon, 95)]
 
 
-print(getLonIndex(85))
-print(lon[getLonIndex(85)])
+sst = nc.variables["analysed_sst"][
+    0,
+    get_lat_index(lat, 15) : get_lat_index(lat, 25),
+    get_lon_index(lon, 85) : get_lon_index(lon, 95),
+]
+
+# take every 10th value from the sst array
+sst = sst[::10, ::10]
+
+# create a basemap instance
+map = Basemap(
+    projection="merc",
+    llcrnrlon=85.0,
+    llcrnrlat=15.0,
+    urcrnrlon=95.0,
+    urcrnrlat=25.0,
+    resolution="i",
+)
+map.drawcoastlines()
+map.drawcountries()
+map.drawlsmask(land_color="#A1887F", ocean_color="#4FC3F7")
+
+lons, lats = np.meshgrid(lon, lat)
+x, y = map(lons, lats)
+
+map.pcolormesh(x, y, sst, cmap=plt.cm.magma_r)
+
+# add colorbar and title besides the plot
+plt.colorbar(orientation="vertical")
+plt.title("Sea Surface Temperature")
+
+plt.show()
